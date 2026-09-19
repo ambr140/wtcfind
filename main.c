@@ -1,16 +1,17 @@
-#include "main.h"
-// #include "cJSON/cJSON.h"
+// #include "main.h"
+//  #include "cJSON/cJSON.h"
 #include "md5.h"
+#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
+// #include <stdlib.h>
 #include <string.h>
 // HashFunction MD5 = Hashing.md5();
 long seedLo;
 long seedHi;
 long seedLoHash;
 long seedHiHash;
-
+int ntimes = 16;
 static inline uint64_t rotl(const uint64_t x, int k) {
   return (x << k) | (x >> (64 - k));
 }
@@ -67,6 +68,22 @@ void LootTableRNG(char *identifier) {
   //   fromBytes(bs[8], bs[9], bs[10], bs[11], bs[12], bs[13], bs[14], bs[15]);
 }
 
+long mixStafford13(long v) {
+  //  printf("%lb\n", v);
+  v = (v ^
+       (v >> 30) &
+           0b0000000000000000000000000000001111111111111111111111111111111111) *
+      0xbf58476d1ce4e5b9;
+  v = (v ^
+       ((v >> 27) &
+        0b0000000000000000000000000001111111111111111111111111111111111111)) *
+      0x94d049bb133111eb;
+  // printf("%li\n", v);
+  return (v ^
+          ((v >> 31) &
+           0b0000000000000000000000000000000111111111111111111111111111111111));
+}
+
 void setSeed(long seed) {
   long l2 = seed ^ 0x6a09e667f3bcc909;
   // printf("%li\n", l2);
@@ -82,22 +99,6 @@ void setSeed(long seed) {
   }
   // printf("%li\n", seedLo);
   // printf("%li\n", seedHi);
-}
-
-long mixStafford13(long v) {
-  //  printf("%lb\n", v);
-  v = (v ^
-       (v >> 30) &
-           0b0000000000000000000000000000001111111111111111111111111111111111) *
-      0xbf58476d1ce4e5b9;
-  v = (v ^
-       ((v >> 27) &
-        0b0000000000000000000000000001111111111111111111111111111111111111)) *
-      0x94d049bb133111eb;
-  // printf("%li\n", v);
-  return (v ^
-          ((v >> 31) &
-           0b0000000000000000000000000000000111111111111111111111111111111111));
 }
 
 uint64_t nextLong(void) {
@@ -213,17 +214,28 @@ bool test_ptandwit(long seed) {
   }
 }
 
+void *get_result(void *param) {
+  int count = 0;
+  long i = 0;
+  while (count < 10000) {
+    if (test_mossandsp(i) && test_ptandwit(i)) {
+      printf("%li\n", i);
+      count++;
+    }
+    i = nextLong();
+  }
+}
 int main(int argc, char *argv[]) {
   int max = 0;
   // Loot tables can be found by renaming the 1.20-pre2 jar to a .zip
   // then navigating to /data/minecraft/loot_tables
   // The needed string is at the bottom of a loot table
   // You also must modify the test_loot function
-  int count = 0;
-  for (int i = 0; count < 100000; i++) {
-    if (test_mossandsp(i) && test_ptandwit(i)) {
-      printf("%i\n", i);
-      count++;
-    }
+  pthread_t *tid = malloc(ntimes * sizeof(pthread_t));
+  for (int i = 0; i < ntimes; i++) {
+    pthread_create(&tid[i], NULL, get_result, NULL);
+  }
+  for (int i = 0; i < ntimes; i++) {
+    pthread_join(tid[i], NULL);
   }
 }
